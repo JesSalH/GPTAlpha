@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using RealTimeVoiceAPI;
 using Serilog;
 
 namespace ConsoleVoice;

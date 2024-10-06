@@ -1,5 +1,6 @@
 ﻿
-using NWaveTest;
+using NWaveApp;
+using Serilog;
 
 namespace ConsoleNWaveTester;
 
@@ -9,38 +10,17 @@ internal class Program
     {
         Console.WriteLine("NWave Voice tester!");
 
-        var audioManager = new AudioManager();
-        string filePath = "test.wav";
+        // Configure Serilog
+        Log.Logger = new LoggerConfiguration()
+            .WriteTo.Console()
+            .CreateLogger();
 
-        Console.WriteLine("Available input devices:");
-        audioManager.ListInputDevices();
-        
-        Console.WriteLine("Enter the device index to use for recording:");
-        if (int.TryParse(Console.ReadLine(), out int inputDeviceIndex))
-        {
-            Console.WriteLine("Press 'R' to start recording...");
-            while (Console.ReadKey(true).Key != ConsoleKey.R)
-            {
-                // Wait for the user to press 'R'
-            }
+        // Create logger instance
+        var logger = Log.Logger;
 
-            audioManager.StartRecording(filePath, inputDeviceIndex);          
-        }
-        else
-        {
-            Console.WriteLine("Invalid input device index.");
-        }
+        var audioManager = new AudioManager(logger);
 
-        Console.WriteLine("Available output devices:");
-        audioManager.ListOutputDevices();
-        if (int.TryParse(Console.ReadLine(), out int outputDeviceIndex))
-        {
-
-            audioManager.PlayRecording(filePath, outputDeviceIndex);
-        }
-        else
-        {
-            Console.WriteLine("Invalid output device index.");
-        }
+        audioManager.RecordVoice();
+       
     }
 }

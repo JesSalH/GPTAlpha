@@ -1,21 +1,24 @@
-﻿using NAudio.Wave;
+﻿using Entitites.RealTimeVoiceAPI;
+using NAudio.Wave;
+using NWaveApp;
 using Serilog;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 
+
 namespace RealTimeVoiceAPI;
 
-public class RealtimeAPIClient
+public partial class RealtimeAPIClient
 {
-    private BufferedWaveProvider bufferedWaveProvider;
-    private WaveOutEvent waveOut;
     private readonly ILogger _logger;
     private ClientWebSocket _socket;
+    private readonly AudioManager _audioManager;
 
     public RealtimeAPIClient(ILogger logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));  // Initialize logger
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _audioManager = new AudioManager(_logger);
     }
 
     public async Task ConnectAsync(string uri, string apiKey)
@@ -92,6 +95,22 @@ public class RealtimeAPIClient
             catch (WebSocketException ex)
             {
                 _logger.Error($"WebSocket error: {ex.Message}");
+                if (socket.State != WebSocketState.Open)
+                {
+                    _logger.Information("Attempting to reconnect...");
+                    //await ReconnectAsync();
+                    break;
+                }
+            }
+            catch (IOException ex)
+            {
+                _logger.Error($"IO error: {ex.Message}");
+                if (socket.State != WebSocketState.Open)
+                {
+                    _logger.Information("Attempting to reconnect...");
+                    //await ReconnectAsync();
+                    break;
+                }
             }
             catch (Exception ex)
             {
@@ -99,6 +118,7 @@ public class RealtimeAPIClient
             }
         }
     }
+
 
     private bool IsEndOfConversation(string message)
     {
@@ -131,29 +151,6 @@ public class RealtimeAPIClient
         }
 
         return false;
-    }
-
-    private void PlayAudio(byte[] audioBuffer, int count)
-    {
-        try
-        {
-            if (bufferedWaveProvider == null)
-            {
-                var waveFormat = new WaveFormat(16000, 16, 1);
-                bufferedWaveProvider = new BufferedWaveProvider(waveFormat);
-                waveOut = new WaveOutEvent();
-                waveOut.Init(bufferedWaveProvider);
-                waveOut.Play();
-            }
-
-            // Add audio data to the buffer
-            bufferedWaveProvider.AddSamples(audioBuffer, 0, count);
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Error playing audio: {ex.Message}");
-            waveOut?.Stop();
-        }
     }
 
     private bool IsAudioResponse(string message)
@@ -198,7 +195,7 @@ public class RealtimeAPIClient
             byte[] audioBytes = Convert.FromBase64String(audioData);
 
             // Play the audio
-            PlayAudio(audioBytes, audioBytes.Length);
+            _audioManager.PlayAudio(audioBytes, audioBytes.Length);
         }
         catch (Exception ex)
         {
@@ -218,17 +215,6 @@ public class RealtimeAPIClient
             _logger.Error($"Error extracting audio data: {ex.Message}");
             return string.Empty;
         }
-    }
-
-    public class AudioResponse
-    {
-        public string Type { get; set; }
-        public AudioContent Audio { get; set; }
-    }
-
-    public class AudioContent
-    {
-        public string Content { get; set; }
     }
 
     private async Task HandleTextResponse(string message)
@@ -301,20 +287,20 @@ public class RealtimeAPIClient
                     }
                 };
 
-                waveIn.StartRecording();
-                Console.ReadKey(true); // Wait for any key press to stop recording
-                isRecording = false;
-                waveIn.StopRecording();
+                _audioManager.RecordVoice();               
             }
         }
         catch (Exception ex)
         {
             _logger.Error($"Error capturing or sending audio: {ex.Message}");
         }
-    }
+    }    
 
     private async Task SendAndReceiveAudio(ClientWebSocket socket)
     {
+        // First, receive the initial context message from the API
+        //await ReceiveMessagesAsync(socket);
+
         while (socket.State == WebSocketState.Open)
         {
             Console.WriteLine("Do you want to send a voice message? (yes/no)");
@@ -322,13 +308,6 @@ public class RealtimeAPIClient
 
             if (userInput == "yes")
             {
-                Console.WriteLine("Press 'R' to start recording...");
-                while (Console.ReadKey(true).Key != ConsoleKey.R)
-                {
-                    // Wait for the user to press 'R'
-                }
-
-                Console.WriteLine("Recording... Press any key to stop.");
                 await SendAudioAsync(socket);
 
                 // Wait for the response
@@ -427,18 +406,6 @@ public class RealtimeAPIClient
         return buffer;
     }
 
-    // ServerResponse and FunctionCall classes to model the expected JSON structure
-    private sealed class ServerResponse
-    {
-        public FunctionCall FunctionCall { get; set; }
-    }
-
-    private sealed class FunctionCall
-    {
-        public string Name { get; set; }
-        public object Parameters { get; set; }
-    }
-
     private void HandleError(string jsonData)
     {
         try
@@ -450,16 +417,6 @@ public class RealtimeAPIClient
         {
             _logger.Error($"Error parsing error event: {ex.Message}");
         }
-    }
-
-    // Example of the ErrorEvent class to model error messages
-    private sealed class ErrorEvent
-    {
-        public string Type { get; set; }
-        public string Code { get; set; }
-        public string Message { get; set; }
-        public string Param { get; set; }
-        public string EventId { get; set; }
     }
 
 }

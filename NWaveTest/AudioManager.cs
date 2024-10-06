@@ -1,13 +1,21 @@
-﻿using NAudio.Dmo;
-using NAudio.Wave;
+﻿using NAudio.Wave;
+using Serilog;
 
-namespace NWaveTest;
+namespace NWaveApp;
 
 public class AudioManager
 {
-    private WaveInEvent waveIn;
-    private WaveFileWriter writer;
-    private string outputFilePath;
+    private WaveInEvent _waveIn;
+    private WaveFileWriter _writer;
+    private string _outputFilePath;
+    private BufferedWaveProvider _bufferedWaveProvider;
+    private WaveOutEvent _waveOut;
+    private readonly ILogger _logger;
+
+    public AudioManager(ILogger logger)
+    {
+        _logger = logger;     
+    }
 
     public void ListInputDevices()
     {
@@ -29,33 +37,33 @@ public class AudioManager
 
     public void StartRecording(string filePath, int deviceIndex)
     {
-        outputFilePath = filePath;
-        waveIn = new WaveInEvent
+        _outputFilePath = filePath;
+        _waveIn = new WaveInEvent
         {
             DeviceNumber = deviceIndex, // Set the device index
             WaveFormat = new WaveFormat(16000, 1)
         };
 
-        waveIn.DataAvailable += (sender, e) =>
+        _waveIn.DataAvailable += (sender, e) =>
         {
-            if (writer == null)
+            if (_writer == null)
             {
-                writer = new WaveFileWriter(outputFilePath, waveIn.WaveFormat);
+                _writer = new WaveFileWriter(_outputFilePath, _waveIn.WaveFormat);
             }
-            writer.Write(e.Buffer, 0, e.BytesRecorded);
+            _writer.Write(e.Buffer, 0, e.BytesRecorded);
         };
 
-        waveIn.RecordingStopped += (sender, e) =>
+        _waveIn.RecordingStopped += (sender, e) =>
         {
-            writer?.Dispose();
-            writer = null;
-            waveIn.Dispose();
+            _writer?.Dispose();
+            _writer = null;
+            _waveIn.Dispose();
         };
 
-        waveIn.StartRecording();
+        _waveIn.StartRecording();
         Console.WriteLine("Recording... Press any key to stop.");
         Console.ReadKey();
-        waveIn.StopRecording();
+        _waveIn.StopRecording();
     }
 
     public void PlayRecording(string filePath, int deviceIndex)
@@ -68,6 +76,65 @@ public class AudioManager
             Console.WriteLine("Playing... Press any key to stop.");
             Console.ReadKey();
             outputDevice.Stop();
+        }
+    }
+
+    public void PlayAudio(byte[] audioBuffer, int count)
+    {
+        try
+        {
+            if (_bufferedWaveProvider == null)
+            {
+                var waveFormat = new WaveFormat(16000, 16, 1);
+                _bufferedWaveProvider = new BufferedWaveProvider(waveFormat);
+                _waveOut = new WaveOutEvent();
+                _waveOut.Init(_bufferedWaveProvider);
+                _waveOut.Play();
+            }
+
+            // Add audio data to the buffer
+            _bufferedWaveProvider.AddSamples(audioBuffer, 0, count);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Error playing audio: {ex.Message}");
+            _waveOut?.Stop();
+        }
+    }
+
+    public void RecordVoice()
+    {
+        string filePath = "test.wav";
+
+        Console.WriteLine("Available input devices:");
+        ListInputDevices();
+
+        Console.WriteLine("Enter the device index to use for recording:");
+        if (int.TryParse(Console.ReadLine(), out int inputDeviceIndex))
+        {
+            Console.WriteLine("Press 'R' to start recording...");
+            while (Console.ReadKey(true).Key != ConsoleKey.R)
+            {
+                // Wait for the user to press 'R'
+            }
+
+            StartRecording(filePath, inputDeviceIndex);
+        }
+        else
+        {
+            Console.WriteLine("Invalid input device index.");
+        }
+
+        Console.WriteLine("Let's hear what you've recorded. Available output devices:");
+        ListOutputDevices();
+        if (int.TryParse(Console.ReadLine(), out int outputDeviceIndex))
+        {
+
+            PlayRecording(filePath, outputDeviceIndex);
+        }
+        else
+        {
+            Console.WriteLine("Invalid output device index.");
         }
     }
 }
