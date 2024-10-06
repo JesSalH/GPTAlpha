@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ConsoleVoice": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

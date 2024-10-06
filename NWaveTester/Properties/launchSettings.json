@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "NWaveTester": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

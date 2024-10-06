@@ -11,7 +11,6 @@ public class ChatCompletionsClient
     private readonly string _apiKey;
     private readonly ILogger _logger; // Serilog logger
 
-
     public ChatCompletionsClient(HttpClient httpClient, string apiKey, ILogger logger)
     {
         _httpClient = httpClient;
@@ -43,7 +42,7 @@ public class ChatCompletionsClient
         var request = new HttpRequestMessage
         {
             Method = HttpMethod.Post,
-            RequestUri = new Uri("https://api.openai.com/v1/engines/chat/completions"),
+            RequestUri = new Uri("https://api.openai.com/v1/chat/completions"),
             Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
         };
 
@@ -73,8 +72,8 @@ public class ChatCompletionsClient
         {
             var responseContent = await response.Content.ReadAsStringAsync();
             dynamic jsonResponse = JsonConvert.DeserializeObject(responseContent);
-            _logger.Information("Response from Chat Completions API: {ResponseContent}", responseContent);
-            return jsonResponse.choices[0].text; // Adjust this if the structure changes
+            //_logger.Information("Response from Chat Completions API: {ResponseContent}", responseContent);
+            return jsonResponse.choices[0].message.content; // Adjust this if the structure changes
         }
         else
         {
